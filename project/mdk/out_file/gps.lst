@@ -1,0 +1,137 @@
+C251 COMPILER V5.60.0,  gps                                                                24/07/25  14:03:57  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE gps
+OBJECT MODULE PLACED IN .\out_file\gps.obj
+COMPILER INVOKED BY: D:\vehicle software\Keil_v5\C251\BIN\C251.EXE ..\code\gps.c LARGE NOALIAS FLOAT64 WARNINGLEVEL(3) O
+                    -PTIMIZE(0,SIZE) BROWSE INCDIR(..\..\libraries\zf_common;..\..\libraries\zf_components;..\..\libraries\zf_device;..\..\li
+                    -braries\zf_driver;..\user;..\code) DEBUG PRINT(.\out_file\gps.lst) TABS(2) OBJECT(.\out_file\gps.obj) 
+
+stmt  level    source
+
+    1          #include "zf_common_headfile.h"
+    2          #include "gps.h"
+    3          #include "encoder.h"
+    4          #include "angle.h"
+    5          #include "my_math.h"
+    6          
+    7          
+    8          double latitude_present;//纬度
+    9          double longitude_present; //经度
+   10          double distance_present;
+   11          double direction_present;//相对于原点的方位角
+   12          double yaw_present;//航向角
+   13          double latitude_begin;
+   14          double longitude_begin;
+   15          double ditance_axis=0;
+   16          double direction_axis=0;
+   17          double distance_aim = 0;
+   18          double direction_aim = 0;
+   19          double angle_gps = 0;
+   20          double str_gps_data_latitude[DATA_LEN];
+   21          double str_gps_data_longitude[DATA_LEN];
+   22          float str_gps_data_x[DATA_LEN]={0};
+   23          float str_gps_data_y[DATA_LEN]={0};
+   24          uint8 gps_collect_counter=0;//采集计数
+   25          uint8 gps_navigate_counter=0;//导航计数
+   26          int gps_i = 0;
+   27          
+   28          void gps_data_collect(void)//后续改采集+储存
+   29          {
+   30   1        if(gps_tau1201_flag&&!gps_data_parse())//0-解析成功 1-解析失败 可能数据包错误
+   31   1       {
+   32   2         //stop
+   33   2       }
+   34   1       else
+   35   1       {
+   36   2        if(gps_collect_counter<DATA_LEN)
+   37   2        { 
+   38   3          if(state_flag2==1)
+   39   3          {
+   40   4              if(encoder>0.3)
+   41   4              {
+   42   5              encoder=0;
+   43   5              str_gps_data_latitude[gps_collect_counter] = gps_tau1201.latitude;
+   44   5              str_gps_data_longitude[gps_collect_counter] = gps_tau1201.longitude;
+   45   5              gps_collect_counter++;
+   46   5              }
+   47   4          }
+   48   3          else
+   49   3          {
+   50   4              if(encoder>0.3)
+   51   4              {
+   52   5              encoder=0;
+   53   5              str_gps_data_latitude[gps_collect_counter] = gps_tau1201.latitude;
+   54   5              str_gps_data_longitude[gps_collect_counter] = gps_tau1201.longitude;
+   55   5              gps_collect_counter++;
+   56   5              }
+   57   4          }
+C251 COMPILER V5.60.0,  gps                                                                24/07/25  14:03:57  PAGE 2   
+
+   58   3        }
+   59   2       }
+   60   1      }
+   61          void gps_axis_exchange(void)//以正北为y轴，建左手坐标系，角度向右为正
+   62          {
+   63   1        for(gps_i=0;gps_i<DATA_LEN;gps_i++)
+   64   1        {
+   65   2        ditance_axis  = get_two_points_distance(str_gps_data_latitude[0],str_gps_data_longitude[0],str_gps_data_
+             -latitude[gps_i],str_gps_data_longitude[gps_i]);
+   66   2        direction_axis = get_two_points_azimuth(str_gps_data_latitude[0],str_gps_data_longitude[0],str_gps_data_
+             -latitude[gps_i],str_gps_data_longitude[gps_i]);
+   67   2        direction_axis = ANGLE_TO_RAD(direction_axis);
+   68   2        str_gps_data_x[gps_i] = my_sin(direction_axis) * ditance_axis;
+   69   2        str_gps_data_y[gps_i] = my_cos(direction_axis) * ditance_axis;
+   70   2        }
+   71   1      }
+   72          
+   73          void gps_navigate(void)//更新当前位置（pos_x,pos_y),测量初始化时位置作为原点
+   74          {
+   75   1       if(gps_tau1201_flag&&!gps_data_parse())//0-解析成功 1-解析失败 可能数据包错误
+   76   1       {
+   77   2         //stop
+   78   2       }
+   79   1       else
+   80   1       {
+   81   2        latitude_present = gps_tau1201.latitude;
+   82   2        longitude_present = gps_tau1201.longitude;
+   83   2        yaw_present = gps_tau1201.direction;
+   84   2        direction_present = get_two_points_azimuth(latitude_begin,longitude_begin,latitude_present,longitude_pre
+             -sent);
+   85   2        direction_present = ANGLE_TO_RAD(direction_present);
+   86   2        distance_present = get_two_points_distance(latitude_begin,longitude_begin,latitude_present,longitude_pre
+             -sent);
+   87   2        pos_x = my_sin(direction_present) * distance_present;
+   88   2        pos_y = my_cos(direction_present) * distance_present;
+   89   2        
+   90   2      //  angle_gps = direction_aim - direction_present;
+   91   2      //  angle_gps = ANGLE_TO_RAD(angle_gps);
+   92   2        
+   93   2      
+   94   2        }
+   95   1      }
+   96          
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      1629     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =      3172     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =      1118     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

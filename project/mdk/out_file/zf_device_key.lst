@@ -1,0 +1,135 @@
+C251 COMPILER V5.60.0,  zf_device_key                                                      24/07/25  14:00:18  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE zf_device_key
+OBJECT MODULE PLACED IN .\out_file\zf_device_key.obj
+COMPILER INVOKED BY: D:\vehicle software\Keil_v5\C251\BIN\C251.EXE ..\code\zf_device_key.c LARGE NOALIAS FLOAT64 WARNING
+                    -LEVEL(3) OPTIMIZE(0,SIZE) BROWSE INCDIR(..\..\libraries\zf_common;..\..\libraries\zf_components;..\..\libraries\zf_devic
+                    -e;..\..\libraries\zf_driver;..\user;..\code) DEBUG PRINT(.\out_file\zf_device_key.lst) TABS(2) OBJECT(.\out_file\zf_devi
+                    -ce_key.obj) 
+
+stmt  level    source
+
+    1          
+    2          #include "zf_common_headfile.h"
+    3          #include "AI8051U.h" 
+    4          #include "zf_device_key.h"
+    5          
+    6          // --- 模块内部变量 ---
+    7          static unsigned long       scanner_period_ms;
+    8          static unsigned long       key_press_time[KEY_NUMBER];
+    9          static key_state_enum      key_state[KEY_NUMBER];
+   10          
+   11          // 读取按键电平的辅助函数
+   12          // 它现在直接使用 AI8051U.h 中定义的 sbit 变量
+   13          unsigned char read_key_pin_level(key_index_enum key_n)
+   14          {
+   15   1          switch(key_n)
+   16   1          {
+   17   2              case KEY_P36: return P36;
+   18   2              case KEY_P37: return P37;
+   19   2              case KEY_P45: return P45;
+   20   2              case KEY_P46: return P46;
+   21   2              default:      return 1; // 默认返回高电平（未按下）
+   22   2          }
+   23   1      }
+   24          
+   25          
+   26          // 按键初始化 (函数体无需修改)
+   27          void key_init(unsigned long period_ms)
+   28          {
+   29   1          unsigned char i; 
+   30   1          
+   31   1          // 对于 P3 和 P4 口，通常默认为准双向口/输入模式，
+   32   1          // C51程序中一般无需特殊初始化。
+   33   1          // 如果你的AI8051U有特殊要求（如设置PxM0/PxM1），请在此处添加。
+   34   1          
+   35   1          for (i = 0; i < KEY_NUMBER; i++)
+   36   1          {
+   37   2              key_state[i] = KEY_RELEASE;
+   38   2              key_press_time[i] = 0;
+   39   2          }
+   40   1          scanner_period_ms = period_ms;
+   41   1      }
+   42          
+   43          
+   44          // 按键状态扫描 (核心逻辑，函数体无需修改)
+   45          void key_scanner(void)
+   46          {
+   47   1          unsigned char i;
+   48   1      
+   49   1          if (scanner_period_ms == 0) return;
+   50   1      
+   51   1          for (i = 0; i < KEY_NUMBER; i++)
+   52   1          {
+   53   2              if (KEY_PRESS_LEVEL == read_key_pin_level((key_index_enum)i))
+   54   2              {
+   55   3                  key_press_time[i]++;
+   56   3                  if ((unsigned long)KEY_LONG_PRESS_PERIOD / scanner_period_ms <= key_press_time[i])
+C251 COMPILER V5.60.0,  zf_device_key                                                      24/07/25  14:00:18  PAGE 2   
+
+   57   3                  {
+   58   4                      key_state[i] = KEY_LONG_PRESS;
+   59   4                  }
+   60   3              }
+   61   2              else 
+   62   2              {
+   63   3                  if ((KEY_LONG_PRESS != key_state[i]) && ((unsigned long)KEY_MAX_SHOCK_PERIOD / scanner_period
+             -_ms <= key_press_time[i]))
+   64   3                  {
+   65   4                      key_state[i] = KEY_SHORT_PRESS;
+   66   4                  }
+   67   3                  else
+   68   3                  {
+   69   4                      key_state[i] = KEY_RELEASE;
+   70   4                  }
+   71   3                  key_press_time[i] = 0;
+   72   3              }
+   73   2          }
+   74   1      }
+   75          
+   76          // 获取按键状态 (无需修改)
+   77          key_state_enum key_get_state(key_index_enum key_n)
+   78          {
+   79   1          return key_state[key_n];
+   80   1      }
+   81          
+   82          // 清除指定按键状态 (无需修改)
+   83          void key_clear_state(key_index_enum key_n)
+   84          {
+   85   1          key_state[key_n] = KEY_RELEASE;
+   86   1      }
+   87          
+   88          // 清除所有按键状态 (无需修改)
+   89          void key_clear_all_state(void)
+   90          {
+   91   1          unsigned char i;
+   92   1          for(i = 0; i < KEY_NUMBER; i++)
+   93   1          {
+   94   2              key_state[i] = KEY_RELEASE;
+   95   2          }
+   96   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       670     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =        41     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =    ------     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

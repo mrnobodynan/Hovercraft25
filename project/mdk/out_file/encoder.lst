@@ -1,0 +1,49 @@
+C251 COMPILER V5.60.0,  encoder                                                            24/07/25  14:00:16  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE encoder
+OBJECT MODULE PLACED IN .\out_file\encoder.obj
+COMPILER INVOKED BY: D:\vehicle software\Keil_v5\C251\BIN\C251.EXE ..\code\encoder.c LARGE NOALIAS FLOAT64 WARNINGLEVEL(
+                    -3) OPTIMIZE(0,SIZE) BROWSE INCDIR(..\..\libraries\zf_common;..\..\libraries\zf_components;..\..\libraries\zf_device;..\.
+                    -.\libraries\zf_driver;..\user;..\code) DEBUG PRINT(.\out_file\encoder.lst) TABS(2) OBJECT(.\out_file\encoder.obj) 
+
+stmt  level    source
+
+    1          #include "zf_common_headfile.h"
+    2          #include "encoder.h"
+    3          #include "zf_driver_encoder.h"
+    4          float encode=0;
+    5          float encode_gps=0;
+    6          void encoder_init()
+    7          {
+    8   1         encoder_dir_init (TIM3_ENCOEDER,DIRECTION, PLUSE);
+    9   1      }
+   10          void encode_control()
+   11          {
+   12   1        encode=(float)(encoder_get_count(TIM3_ENCOEDER));
+   13   1        encoder_clear_count(TIM3_ENCOEDER);
+   14   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =        48     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =         8     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        18     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

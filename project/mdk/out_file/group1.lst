@@ -1,0 +1,126 @@
+C251 COMPILER V5.60.0,  group1                                                             13/07/25  14:42:36  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE group1
+OBJECT MODULE PLACED IN .\out_file\group1.obj
+COMPILER INVOKED BY: D:\C251\BIN\C251.EXE group1.c LARGE NOALIAS WARNINGLEVEL(3) OPTIMIZE(0,SIZE) BROWSE INCDIR(..\..\li
+                    -braries\zf_common;..\..\libraries\zf_components;..\..\libraries\zf_device;..\..\libraries\zf_driver;..\user;..\code) DEB
+                    -UG PRINT(.\out_file\group1.lst) TABS(2) OBJECT(.\out_file\group1.obj) 
+
+stmt  level    source
+
+    1          #include "zf_common_headfile.h"
+    2          #include "zf_device_lora3a22.h"
+    3          #include "remotecontrol.h"
+    4          #include "encoder.h"
+    5          #include "angle.h"
+    6          #include "groupone.h"
+*** ERROR C318 IN LINE 6 OF group1.c: can't open file 'groupone.h'
+    7          #include "math.h"
+    8          uint16 gyro_collect_counter_one=0;
+    9          float group_data_x_one[50];
+   10          float group_data_y_one[50];
+   11          float gyro_yaw_one=0;
+   12          float gyro_z_one=0;
+   13          float encoder=0;
+   14          float angle_gyro=0;
+   15          float gyro_pos_x=0;
+   16          float gyro_pos_y=0;
+   17          float gyro_direction_aim=0;
+   18          void gyro_data_collect_one(void)
+   19          {
+   20   1        if(gyro_collect_counter_one<50)
+   21   1        {   //更新航向角
+   22   2          gyro_z_one = imu660ra_gyro_transition(imu660ra_gyro_z);
+   23   2          gyro_yaw_one +=( gyro_z_one-gyro_z_bias )* 0.005;
+   24   2          if ( gyro_yaw_one > 180)
+   25   2          {
+   26   3           gyro_yaw_one -= 360;
+   27   3          }
+   28   2          else if (gyro_yaw_one < -180)
+   29   2          {
+   30   3            gyro_yaw_one += 360;
+   31   3          }
+   32   2          gyro_yaw_one = gyro_yaw_one/180*3.1415926535898;//角度改弧度    
+   33   2          //积分位置
+   34   2          gyro_pos_x += -encode *sin(gyro_yaw_one)* 0.005;//?
+   35   2          gyro_pos_y += encode *cos(gyro_yaw_one)* 0.005;
+   36   2          encoder += encode;
+   37   2          //printf("%f,%f\n",gyro_pos_x,gyro_pos_y);
+   38   2          
+   39   2          if(encoder>3000)
+   40   2          {
+   41   3            group_data_x_one[gyro_collect_counter_one] = gyro_pos_x;
+   42   3            group_data_y_one[gyro_collect_counter_one] = gyro_pos_y;
+   43   3            gyro_collect_counter_one++;
+   44   3            gyro_pos_x=0;
+   45   3            gyro_pos_y=0;
+   46   3            encoder=0;
+   47   3          }
+   48   2          iap_write_buff(0x0000, (float *)group_data_x_one[gyro_collect_counter_one],200);
+*** WARNING C98 IN LINE 48 OF group1.c: parameter 2: pointer to different objects
+*** ERROR C84 IN LINE 48 OF group1.c: illegal type conversion
+   49   2          iap_write_buff(0x0200, (float *)group_data_y_one[gyro_collect_counter_one],200);
+*** ERROR C84 IN LINE 49 OF group1.c: illegal type conversion
+   50   2        }
+   51   1      }
+   52          
+   53          
+C251 COMPILER V5.60.0,  group1                                                             13/07/25  14:42:36  PAGE 2   
+
+   54          void gyro_navigate_one(void)
+   55          {
+   56   1        if(gyro_collect_counter_one<50)
+   57   1        {
+   58   2            iap_read_buff(0x0000, (float *)group_data_x_one[gyro_collect_counter_one],200);
+*** ERROR C84 IN LINE 58 OF group1.c: illegal type conversion
+   59   2            iap_read_buff(0x0200, (float *)group_data_y_one[gyro_collect_counter_one],200);
+*** ERROR C84 IN LINE 59 OF group1.c: illegal type conversion
+   60   2            encoder += encode;
+   61   2            gyro_z_one = imu660ra_gyro_transition(imu660ra_gyro_z);
+   62   2            gyro_yaw_one +=( gyro_z_one-gyro_z_bias )* 0.005;
+   63   2            if ( gyro_yaw_one > 180)
+   64   2            {
+   65   3              gyro_yaw_one -= 360;
+   66   3            }
+   67   2            else if (gyro_yaw_one < -180)
+   68   2            {
+   69   3              gyro_yaw_one += 360;
+   70   3            }
+   71   2            gyro_yaw_one = gyro_yaw_one/180*3.1415926535898;//角度改弧
+   72   2            gyro_pos_x += -encode *sin(gyro_yaw_one)* 0.005;
+   73   2            gyro_pos_y += encode *cos(gyro_yaw_one)* 0.005;
+   74   2            if(gyro_collect_counter>0)
+*** ERROR C67 IN LINE 74 OF group1.c: 'gyro_collect_counter': undefined identifier
+   75   2            {
+   76   3              gyro_direction_aim = atan2((group_data_y_one[gyro_collect_counter_one]-group_data_y_one[gyro_collect_
+             -counter_one-1]),(group_data_x_one[gyro_collect_counter_one]-group_data_x_one[gyro_collect_counter_one-1]));
+   77   3            }
+   78   2            if(gyro_collect_counter=0) //0的情况单独讨论
+*** ERROR C67 IN LINE 78 OF group1.c: 'gyro_collect_counter': undefined identifier
+   79   2            {
+   80   3              gyro_direction_aim = atan2(group_data_y_one[gyro_collect_counter_one],group_data_x_one[gyro_collect_c
+             -ounter_one]);
+   81   3              if(gyro_pos_y>(group_data_y_one[0]))
+   82   3              {
+   83   4                gyro_collect_counter_one++;
+   84   4              }
+   85   3            }
+   86   2            angle_gyro = (float)(gyro_direction_aim-gyro_yaw_one)/3.14156*180;
+   87   2            if ( angle_gyro > 180)
+   88   2            {
+   89   3              angle_gyro -= 360;
+   90   3            }
+   91   2            else if (angle_gyro < -180)
+   92   2            {
+   93   3              angle_gyro += 360;
+   94   3            }
+   95   2            if(gyro_pos_y>(group_data_y_one[gyro_collect_counter_one]-group_data_y_one[gyro_collect_counter_one-1]
+             -))
+   96   2            {
+   97   3              gyro_collect_counter_one++;
+   98   3            }
+   99   2        }
+  100   1      }
+
+C251 COMPILATION COMPLETE.  1 WARNING(S),  7 ERROR(S)

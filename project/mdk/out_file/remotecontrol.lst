@@ -1,0 +1,336 @@
+C251 COMPILER V5.60.0,  remotecontrol                                                      24/07/25  14:00:17  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE remotecontrol
+OBJECT MODULE PLACED IN .\out_file\remotecontrol.obj
+COMPILER INVOKED BY: D:\vehicle software\Keil_v5\C251\BIN\C251.EXE ..\code\remotecontrol.c LARGE NOALIAS FLOAT64 WARNING
+                    -LEVEL(3) OPTIMIZE(0,SIZE) BROWSE INCDIR(..\..\libraries\zf_common;..\..\libraries\zf_components;..\..\libraries\zf_devic
+                    -e;..\..\libraries\zf_driver;..\user;..\code) DEBUG PRINT(.\out_file\remotecontrol.lst) TABS(2) OBJECT(.\out_file\remotec
+                    -ontrol.obj) 
+
+stmt  level    source
+
+    1          #include "zf_common_headfile.h"
+    2          #include "zf_device_lora3a22.h"
+    3          #include "remotecontrol.h"
+    4          #include "encoder.h"
+    5          #include "gyroscope.h"
+    6          #include "angle.h"
+    7          #include "math.h"
+    8          #include "zf_device_key.h"
+    9          float speed=90;
+   10          float k=2.5;
+   11          struct PID pid_gyro = {0.4,0.019,}; //角速度环//0.35,0.009  o.45,0.25
+   12          struct PID pid_v = {1.25, 0.27 , 0};//1.2,0.25
+   13          
+   14          
+   15          float loc_x[128]={0.0};
+   16          float loc_y[128]={0.0,5};
+   17          uint8 a=0;
+   18          uint8 m=0;
+   19          float yaw=0;
+   20          float len=0;
+   21          static ControlMode mode = MODE_MANUAL;
+   22          uint8 collect_counter=0;  
+   23          uint8 fallback_index =0;
+   24          float discriminant = 0;
+   25          float k1 = 0;
+   26          float k2 = 0;
+   27          float lookahead_point_x=0;
+   28          float lookahead_point_y =0;
+   29          float x=0;
+   30          float y=0;
+   31          float pwm2=0;
+   32          float pwm0=0; //左边陀螺仪是正值
+   33          float motor0=0;
+   34          float motor1=0;
+   35          float motor2=0;
+   36          float motor3=0;
+   37          
+   38          
+   39          
+   40          void anglespeed_pid()
+   41          {
+   42   1        pwm2 += IncPIDCalc(gyro_z, x,  &pid_gyro);
+   43   1        if(pwm2 > 350) 
+   44   1          pwm2 = 350;
+   45   1        else if(pwm2 < -350) 
+   46   1          pwm2 = -350;
+   47   1      }
+   48          void anglespeed_pid_auto()
+   49          {
+   50   1        pwm2 += IncPIDCalc(gyro_z,k*angle_z,  &pid_gyro);
+   51   1        if(pwm2 > 350) 
+   52   1          pwm2 = 350;
+   53   1        else if(pwm2 < -350) 
+   54   1          pwm2 = -350;
+   55   1      }
+   56          
+C251 COMPILER V5.60.0,  remotecontrol                                                      24/07/25  14:00:17  PAGE 2   
+
+   57          void process_manual_mode()
+   58          {                   
+   59   1                  
+   60   1             y=(float)(lora3a22_uart_transfer.joystick[1])/2000.0f*speed;
+   61   1             x=(float)(lora3a22_uart_transfer.joystick[2])/2000.0f*95.0f; 
+   62   1             anglespeed_pid();
+   63   1             if(m==20)
+   64   1             {
+   65   2                m=0;
+   66   2                pwm0 +=  IncPIDCalc(encode,y,&pid_v);     
+   67   2                if(pwm0 > 350) //限值
+   68   2                  pwm0 = 350; 
+   69   2                else  if(pwm0 < -350)   
+   70   2                  pwm0 = -350;
+   71   2                motor3=900-pwm2/2;// - pwm_pitch;     //左前风扇,控制气垫船起落
+   72   2                motor0=900+pwm2/2;// - pwm_pitch;       //右前
+   73   2                motor2 = 600 + pwm0 - pwm2 ;// + pwm_pitch;  //   左后风扇前进
+   74   2                motor1 = 600 + pwm0 + pwm2 ;// + pwm_pitch;   //  右后风扇
+   75   2                if(motor1 >= 950) //限值
+   76   2                  motor1 = 950;
+   77   2                else if(motor1 <= 550)
+   78   2                  motor1 = 550;
+   79   2                if(motor2 >= 950)
+   80   2                  motor2 = 950;
+   81   2                else if(motor2 <= 550)
+   82   2                  motor2 = 550;         
+   83   2                if(motor0 >= 950)
+   84   2                  motor0 = 950;
+   85   2                if(motor3 >= 950)
+   86   2                  motor3 =950;
+   87   2                if((x < 5.0f && x > -5.0f) && (y < 5.0f && y > -5.0f))
+   88   2                {
+   89   3                   pwm0 *= 0.7f; 
+   90   3                   if(pwm0 < 1.0f) 
+   91   3                     pwm0 = 0; // 防止一直衰减
+   92   3                }             
+   93   2                motor1=motor1*1.01;
+   94   2                if(lora3a22_uart_transfer.switch_key[2] == 1)
+   95   2                 {
+   96   3                   pwm_set_duty(PWMB_CH2_P51,motor1);   
+   97   3                   pwm_set_duty(PWMB_CH1_P50,motor0);
+   98   3                   pwm_set_duty(PWMB_CH3_P52,motor2);                  
+   99   3                   pwm_set_duty(PWMB_CH4_P53,motor3);
+  100   3                 }
+  101   2                 else
+  102   2                 {
+  103   3                   pwm_set_duty(PWMB_CH2_P51,0);   
+  104   3                   pwm_set_duty(PWMB_CH1_P50,0);
+  105   3                   pwm_set_duty(PWMB_CH3_P52,0);                  
+  106   3                   pwm_set_duty(PWMB_CH4_P53,0);
+  107   3                 }
+  108   2               }
+  109   1               m++;
+  110   1      }
+  111          void update_control_mode() 
+  112          {
+  113   1          if (lora3a22_uart_transfer.switch_key[3] == 0) 
+  114   1          {
+  115   2              mode = MODE_MANUAL; 
+  116   2          } 
+  117   1          else if (lora3a22_uart_transfer.switch_key[3] == 1) 
+  118   1          {
+  119   2              mode = MODE_AUTO;
+  120   2          }
+  121   1      }
+  122          
+C251 COMPILER V5.60.0,  remotecontrol                                                      24/07/25  14:00:17  PAGE 3   
+
+  123          void state_control() 
+  124          {
+  125   1          switch (mode) 
+  126   1          {
+  127   2              case MODE_MANUAL:
+  128   2                  process_manual_mode();
+  129   2                  break;
+  130   2              case MODE_AUTO:
+  131   2                  process_auto_mode();
+  132   2                  break;
+  133   2              default:
+  134   2                  break;
+  135   2          }
+  136   1      }
+  137          
+  138          
+  139          void process_auto_mode()
+  140          {
+  141   1        anglespeed_pid_auto();
+  142   1        if(m==20)
+  143   1        {
+  144   2          m=0;
+  145   2          pwm0 +=  IncPIDCalc(encode,speed,&pid_v);     
+  146   2          if(pwm0 > 350) //限值
+  147   2            pwm0 = 350; 
+  148   2          else  if(pwm0 < -350)   
+  149   2            pwm0 = -350;
+  150   2        }
+  151   1        m++;
+  152   1        motor3=900-pwm2/4;// - pwm_pitch;     //左前风扇,控制气垫船起落
+  153   1        motor0=900+pwm2/4; //- pwm_pitch;       //右前
+  154   1        motor2 = 600 + pwm0 - pwm2 ;// + pwm_pitch;  //   左后风扇前进
+  155   1        motor1 = 600 + pwm0 + pwm2 ;// + pwm_pitch;   //  右后风扇
+  156   1        if(motor1 >= 950) //限值
+  157   1          motor1 = 950;
+  158   1        else if(motor1 <= 550)
+  159   1          motor1 = 550;
+  160   1        if(motor2 >= 950)
+  161   1          motor2 = 950;
+  162   1        else if(motor2 <= 550)
+  163   1          motor2 = 550;         
+  164   1        if(motor0 >= 950)
+  165   1          motor0 = 950;
+  166   1        if(motor3 >= 950)
+  167   1          motor3 =950;
+  168   1        motor1=motor1*1.01;
+  169   1        if(pos_y<-0.2)
+  170   1        {
+  171   2          motor3 = 0;
+  172   2          motor0 = 0;
+  173   2          motor2 = 0;
+  174   2          motor1 = 0;
+  175   2        }
+  176   1      //  if(key_get_state(KEY_P36) == KEY_SHORT_PRESS)
+  177   1      //   {
+  178   1      //     pwm_set_duty(PWMB_CH2_P51,motor1);   
+  179   1      //     pwm_set_duty(PWMB_CH1_P50,motor0);
+  180   1      //     pwm_set_duty(PWMB_CH3_P52,motor2);                  
+  181   1      //     pwm_set_duty(PWMB_CH4_P53,motor3);
+  182   1      //   }  
+  183   1                if(lora3a22_uart_transfer.switch_key[2] == 1)
+  184   1                 {
+  185   2                   pwm_set_duty(PWMB_CH2_P51,motor1);   
+  186   2                   pwm_set_duty(PWMB_CH1_P50,motor0);
+  187   2                   pwm_set_duty(PWMB_CH3_P52,motor2);                  
+  188   2                   pwm_set_duty(PWMB_CH4_P53,motor3);
+C251 COMPILER V5.60.0,  remotecontrol                                                      24/07/25  14:00:17  PAGE 4   
+
+  189   2                 }
+  190   1                 else
+  191   1                 {
+  192   2                   pwm_set_duty(PWMB_CH2_P51,0);   
+  193   2                   pwm_set_duty(PWMB_CH1_P50,0);
+  194   2                   pwm_set_duty(PWMB_CH3_P52,0);                  
+  195   2                   pwm_set_duty(PWMB_CH4_P53,0);
+  196   2                 }
+  197   1      }
+  198          
+  199          float IncPIDCalc(float CurrentPoint,float SetPoint,struct PID* sptr) 
+  200          {
+  201   1        float iIncpid;
+  202   1        sptr->iError=SetPoint-CurrentPoint;                                     // 计算当前误差
+  203   1        iIncpid=sptr->Proportion * (sptr->iError-sptr->Error1)                  // P
+  204   1                      +sptr->Integral * sptr->iError                                   // I
+  205   1                      +sptr->Derivative * (sptr->iError-2*sptr->Error1+sptr->Error2);  // D             
+  206   1        sptr->Error2=sptr->Error1;                          // 存储误差，用于下次计算
+  207   1        sptr->Error1=sptr->iError;                        
+  208   1        return(iIncpid);                                    // 返回增量值
+  209   1      }
+  210          
+  211          float LocPIDCalc(float CurrentPoint,float SetPoint,struct PID* sptr)
+  212          {
+  213   1        float iLocpid;
+  214   1        sptr->Error2=SetPoint-CurrentPoint;
+  215   1        sptr->iError += sptr->Error2;
+  216   1      //  if(sptr->iError > 100 )
+  217   1      //  {
+  218   1      //      sptr->iError = 100;
+  219   1      //  }
+  220   1      //  else if (sptr->iError < -100) 
+  221   1      //  {
+  222   1      //      sptr->iError = -100;
+  223   1      //  }//  if((x < 5.0f && x > -5.0f) && (sptr->Error2 < 5.0f && sptr->Error2 > -5.0f))
+  224   1      //  {
+  225   1      //     sptr->iError *= 0.7;  // 逐渐衰减而不是直接清零
+  226   1      //  }
+  227   1        iLocpid=sptr->Proportion*sptr->Error2 + sptr->Integral*sptr->iError + sptr->Derivative*(sptr->Error2-spt
+             -r->Error1);
+  228   1        sptr->Error1 = sptr->Error2;
+  229   1        return(iLocpid);
+  230   1      }
+  231          
+  232          
+  233          float lerp(float start, float end, float t)
+  234          {
+  235   1          return start + t * (end - start);
+  236   1      }
+  237          
+  238          void get_turn_angle(void)
+  239          {
+  240   1          uint8 i = 0;
+  241   1          float x = 0, y = 0, z = 0;
+  242   1          fallback_index= ( a<collect_counter - 1) ? (a) : (collect_counter - 1);
+  243   1          lookahead_point_x= loc_x[fallback_index];
+  244   1          lookahead_point_y= loc_y[fallback_index];
+  245   1          len = (loc_x[a] - pos_x)*(loc_x[a] - pos_x)+(loc_y[a] - pos_y)*(loc_y[a] - pos_y);
+  246   1          if (len < 0.2*0.2)
+  247   1          {
+  248   2              a++; 
+  249   2          }
+  250   1          for (i = a; i < collect_counter - 1 ; i++) 
+  251   1          {
+  252   2              x = (loc_x[i + 1] -loc_x[i])*(loc_x[i + 1] - loc_x[i]) + (loc_y[i + 1] - loc_y[i])*(loc_y[i + 1] 
+             -- loc_y[i]);
+C251 COMPILER V5.60.0,  remotecontrol                                                      24/07/25  14:00:17  PAGE 5   
+
+  253   2              y = 2*((loc_x[i] - pos_x) * (loc_x[i + 1] - loc_x[i]) + (loc_y[i] - pos_y)*(loc_y[i + 1] - loc_y[
+             -i]));
+  254   2              z =((loc_x[i]-pos_x)*(loc_x[i]-pos_x)+(loc_y[i]-pos_y)*(loc_y[i] - pos_y)) - LOOKAHEAD_DISTANCE*L
+             -OOKAHEAD_DISTANCE;
+  255   2              discriminant = y * y - 4 * x * z;
+  256   2              if (discriminant >= 0) 
+  257   2              {
+  258   3                  discriminant = (float)sqrt(discriminant); 
+  259   3                  k1 = (-y - discriminant) / (2 * x);
+  260   3                  k2 = (-y + discriminant) / (2 * x);
+  261   3                  if (k2 >= 0 && k2 <= 1) 
+  262   3                  {
+  263   4                      lookahead_point_x = lerp(loc_x[i], loc_x[i + 1], k2);
+  264   4                      lookahead_point_y = lerp(loc_y[i], loc_y[i + 1], k2);
+  265   4                      a = i;
+  266   4                      break; 
+  267   4                  }
+  268   3                  if (k1 >= 0 && k1 <= 1) 
+  269   3                  {
+  270   4                      lookahead_point_x = lerp(loc_x[i], loc_x[i + 1], k1);
+  271   4                      lookahead_point_y = lerp(loc_y[i], loc_y[i + 1], k1);
+  272   4                      a = i;
+  273   4                      break; 
+  274   4                  }
+  275   3              }
+  276   2          }
+  277   1          yaw = atan2((lookahead_point_x - pos_x), (lookahead_point_y - pos_y));
+  278   1          yaw = yaw * 180.0f / M_PI;
+  279   1          angle_z = gyro_yaw - yaw;
+  280   1          if (angle_z > 180.0f) 
+  281   1          {
+  282   2              angle_z -= 360.0f;
+  283   2          }
+  284   1          if (angle_z < -180.0f) 
+  285   1          {
+  286   2              angle_z += 360.0f;
+  287   2          }
+  288   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      5333     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =      1227     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =      1300     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

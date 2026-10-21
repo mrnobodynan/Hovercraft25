@@ -1,0 +1,754 @@
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE zf_device_ips200
+OBJECT MODULE PLACED IN .\out_file\zf_device_ips200.obj
+COMPILER INVOKED BY: D:\vehicle software\Keil_v5\C251\BIN\C251.EXE ..\..\libraries\zf_device\zf_device_ips200.c LARGE NO
+                    -ALIAS FLOAT64 WARNINGLEVEL(3) OPTIMIZE(0,SIZE) BROWSE INCDIR(..\..\libraries\zf_common;..\..\libraries\zf_components;..\
+                    -..\libraries\zf_device;..\..\libraries\zf_driver;..\user;..\code) DEBUG PRINT(.\out_file\zf_device_ips200.lst) TABS(2) O
+                    -BJECT(.\out_file\zf_device_ips200.obj) 
+
+stmt  level    source
+
+    1          /********************************************************************************************************
+             -*************
+    2          * COPYRIGHT NOTICE
+    3          * Copyright (c) 2019,逐飞科技
+    4          * All rights reserved.
+    5          *
+    6          * 以下所有内容版权均属逐飞科技所有，未经允许不得用于商业用途，
+    7          * 欢迎各位使用并传播本程序，修改内容时必须保留逐飞科技的版权声明。
+    8          *
+    9          * @file             zf_device_ips200
+   10          * @company          成都逐飞科技有限公司
+   11          * @author           逐飞科技(QQ790875685)
+   12          * @version          查看doc内version文件 版本说明
+   13          * @Software         MounRiver Studio V1.51
+   14          * @Target core      CH32V307VCT6
+   15          * @Taobao           https://seekfree.taobao.com/
+   16          * @date             2021-11-25
+   17          * @note             接线定义：
+   18          *                   ------------------------------------
+   19          *                   模块管脚                                       单片机管脚
+   20          *                   SCL                 查看 zf_device_ips200.h 中 IPS200_SCL_PIN 宏定义
+   21          *                   SDA                 查看 zf_device_ips200.h 中 IPS200_SDA_PIN 宏定义
+   22          *                   RST                 查看 zf_device_ips200.h 中 IPS200_RST_PIN 宏定义
+   23          *                   DC                  查看 zf_device_ips200.h 中 IPS200_DC_PIN 宏定义
+   24          *                   CS                  查看 zf_device_ips200.h 中 IPS200_CS_PIN 宏定义
+   25          *                   BLK                 查看 zf_device_ips200.h 中 IPS200_BLK_PIN 宏定义
+   26          *                   电源引脚
+   27          *                   VCC                 3.3V电源
+   28          *                   GND                 电源地
+   29          *                   最大分辨率135*240
+   30          *                   ------------------------------------
+   31          *********************************************************************************************************
+             -***********/
+   32          
+   33          #include "zf_common_clock.h"
+   34          #include "zf_common_debug.h"
+   35          #include "zf_common_font.h"
+   36          #include "zf_common_function.h"
+   37          #include "zf_driver_delay.h"
+   38          #include "zf_driver_spi.h"
+   39          
+   40          #include "zf_device_ips200.h"
+   41          
+   42          #define IPS_LEN   240
+   43          #define IPS_WIGHT 320
+   44          
+   45          uint16 ips200_pencolor = IPS200_DEFAULT_PENCOLOR;
+   46          uint16 ips200_bgcolor = IPS200_DEFAULT_BGCOLOR;
+   47          
+   48          ips200_dir_enum ips200_display_dir = IPS200_DEFAULT_DISPLAY_DIR;
+   49          uint16 ips200_x_max = IPS_LEN;
+   50          uint16 ips200_y_max = IPS_WIGHT;
+   51          
+   52          #if IPS200_USE_SOFT_SPI
+               static soft_spi_info_struct             ips200_spi;
+               #define ips200_write_8bit_data(dat)    soft_spi_write_8bit(&ips200_spi, dat)
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 2   
+
+               #define ips200_write_16bit_data(dat)   soft_spi_write_16bit(&ips200_spi, dat)
+               #else
+   57          #define ips200_write_8bit_data(dat)    spi_write_8bit(IPS200_SPI, dat)
+   58          #define ips200_write_16bit_data(dat)   spi_write_16bit(IPS200_SPI, dat)
+   59          
+   60          #endif
+   61          
+   62          //-------------------------------------------------------------------------------------------------------
+             -------------
+   63          // @brief       写命令 内部调用
+   64          // @note        内部调用 用户无需关心
+   65          //-------------------------------------------------------------------------------------------------------
+             -------------
+   66          static void ips200_write_index (uint8 dat)
+   67          {
+   68   1          IPS200_CS(1);
+   69   1          IPS200_CS(0);
+   70   1          IPS200_DC(0);
+   71   1          ips200_write_8bit_data(dat);
+   72   1          IPS200_DC(1);
+   73   1          IPS200_CS(1);
+   74   1          IPS200_CS(0);
+   75   1      }
+   76          
+   77          //-------------------------------------------------------------------------------------------------------
+             -------------
+   78          // @brief       设置显示区域 内部调用
+   79          // @param       x1              起始x轴坐标
+   80          // @param       y1              起始y轴坐标
+   81          // @param       x2              结束x轴坐标
+   82          // @param       y2              结束y轴坐标
+   83          // @return      void
+   84          // @note        内部调用 用户无需关心
+   85          //-------------------------------------------------------------------------------------------------------
+             -------------
+   86          static void ips200_set_region (uint16 x1, uint16 y1, uint16 x2, uint16 y2)
+   87          {
+   88   1          //zf_assert(x1 < ips200_x_max);
+   89   1          //zf_assert(y1 < ips200_y_max);
+   90   1          //zf_assert(x2 < ips200_x_max);
+   91   1          //zf_assert(y2 < ips200_y_max);
+   92   1      
+   93   1      
+   94   1        ips200_write_index(0x2a);                                               // 列地址设置
+   95   1        ips200_write_16bit_data(x1);
+   96   1        ips200_write_16bit_data(x2);
+   97   1        ips200_write_index(0x2b);                                               // 行地址设置
+   98   1        ips200_write_16bit_data(y1);
+   99   1        ips200_write_16bit_data(y2);
+  100   1        ips200_write_index(0x2c);                                               // 储存器写
+  101   1      
+  102   1      }
+  103          
+  104          //-------------------------------------------------------------------------------------------------------
+             -------------
+  105          // @brief       液晶清屏函数
+  106          // @param       color           颜色格式 RGB565 或者可以使用 zf_common_font.h 内常用颜色�
+             -�定义
+  107          // @return      void
+  108          // Sample usage:                ips200_clear(YELLOW);
+  109          //-------------------------------------------------------------------------------------------------------
+             -------------
+  110          void ips200_clear (uint16 color)
+  111          {
+  112   1          uint16 i, j;
+  113   1          ips200_set_region(0, 0, ips200_x_max - 1, ips200_y_max - 1);
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 3   
+
+  114   1        
+  115   1        for(i = 0; i < ips200_x_max; i ++)
+  116   1          {
+  117   2              for (j = 0; j < ips200_y_max; j ++)
+  118   2              {
+  119   3                  ips200_write_16bit_data(color);              
+  120   3              }
+  121   2          }
+  122   1      
+  123   1      }
+  124          
+  125          //-------------------------------------------------------------------------------------------------------
+             -------------
+  126          // @brief       设置显示方向 这个函数只有在初始化屏幕之前调用才生效
+  127          // @param       dir             显示方向  参照 zf_device_ips200.h 内 ips200_dir_enum 枚举体定�
+             -��
+  128          // @return      void
+  129          // Sample usage:                ips200_set_dir(IPS200_CROSSWISE);
+  130          //-------------------------------------------------------------------------------------------------------
+             -------------
+  131          void ips200_set_dir (ips200_dir_enum dir)
+  132          {
+  133   1          ips200_display_dir = dir;
+  134   1      //    if(dir < 2)
+  135   1      //    {
+  136   1      //        ips200_x_max = IPS_WIGHT;
+  137   1      //        ips200_y_max = IPS_LEN;
+  138   1      //    }
+  139   1      //    else
+  140   1      //    {
+  141   1      //        ips200_x_max = IPS_LEN;
+  142   1      //        ips200_y_max = IPS_WIGHT;
+  143   1      //    }
+  144   1      }
+  145          
+  146          //-------------------------------------------------------------------------------------------------------
+             -------------
+  147          // @brief       设置显示颜色
+  148          // @param       pen             颜色格式 RGB565 或者可以使用 zf_common_font.h 内常用颜色�
+             -�定义
+  149          // @param       bgcolor         颜色格式 RGB565 或者可以使用 zf_common_font.h 内常用颜色�
+             -�定义
+  150          // @return      void
+  151          // Sample usage:                ips200_set_color(WHITE,BLACK);
+  152          //-------------------------------------------------------------------------------------------------------
+             -------------
+  153          void ips200_set_color (uint16 pen, uint16 bgcolor)
+  154          {
+  155   1          ips200_pencolor = pen;
+  156   1          ips200_bgcolor = bgcolor;
+  157   1      }
+  158          
+  159          //-------------------------------------------------------------------------------------------------------
+             -------------
+  160          // @brief       液晶画点
+  161          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  162          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  163          // @param       dat             需要显示的颜色
+  164          // @return      void
+  165          // Sample usage:                ips200_draw_point(0,0,RED);                     // 坐标 0,0 画一个�
+             -�色的点
+  166          //-------------------------------------------------------------------------------------------------------
+             -------------
+  167          void ips200_draw_point (uint16 x,uint16 y,uint16 color)
+  168          {
+  169   1          //zf_assert(x < ips200_x_max);
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 4   
+
+  170   1          //zf_assert(y < ips200_y_max);
+  171   1      
+  172   1          ips200_set_region(x,y,x,y);
+  173   1          ips200_write_16bit_data(color);
+  174   1      }
+  175          
+  176          //-------------------------------------------------------------------------------------------------------
+             -------------
+  177          // @brief       液晶显示字符
+  178          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  179          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  180          // @param       dat             需要显示的字符
+  181          // @return      void
+  182          // Sample usage:                ips200_show_char(0,0,'x');                      // 坐标 0,0 写一个�
+             -�符 x
+  183          //-------------------------------------------------------------------------------------------------------
+             -------------
+  184          void ips200_show_char (uint16 x,uint16 y,const char dat)
+  185          {
+  186   1          //zf_assert(x < ips200_x_max);
+  187   1          //zf_assert(y < ips200_y_max);
+  188   1      
+  189   1          uint8 i,j;
+  190   1          uint8 temp;
+  191   1      
+  192   1          for(i=0; i<16; i++)
+  193   1          {
+  194   2              ips200_set_region(x,y+i,x+7,y+i);
+  195   2              temp = tft_ascii[dat-32][i];                                            //减 32 因为是取模�
+             -��从空格开始取得 空格在 ascii 中序号是 32
+  196   2              for(j=0; j<8; j++)
+  197   2              {
+  198   3                  if(temp&0x01)   
+  199   3                      ips200_write_16bit_data(ips200_pencolor);
+  200   3                  else
+  201   3                      ips200_write_16bit_data(ips200_bgcolor);
+  202   3                  temp>>=1;
+  203   3              }
+  204   2          }
+  205   1      }
+  206          
+  207          //-------------------------------------------------------------------------------------------------------
+             -------------
+  208          // @brief       液晶显示字符串
+  209          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  210          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  211          // @param       dat             需要显示的字符串
+  212          // @return      void
+  213          // Sample usage:                ips200_show_string(0,0,"seekfree");
+  214          //-------------------------------------------------------------------------------------------------------
+             -------------
+  215          void ips200_show_string (uint16 x,uint16 y,const char dat[])
+  216          {
+  217   1          //zf_assert(x < ips200_x_max);
+  218   1          //zf_assert(y < ips200_y_max);
+  219   1          
+  220   1          uint16 j = 0;
+  221   1          while(dat[j] != '\0')
+  222   1          {
+  223   2              ips200_show_char(x+8*j,y,dat[j]);
+  224   2              j++;
+  225   2          }
+  226   1      }
+  227          
+  228          //-------------------------------------------------------------------------------------------------------
+             -------------
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 5   
+
+  229          //  @brief      液晶显示8位有符号
+  230          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  231          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  232          //  @param      dat             需要显示的变量，数据类型int8
+  233          //  @return     void
+  234          //  Sample usage:               ips200_show_int8(0,0,x);                        // x为 int8 类型
+  235          //-------------------------------------------------------------------------------------------------------
+             -------------
+  236          void ips200_show_int8(uint16 x,uint16 y,int8 dat)
+  237          {
+  238   1          //zf_assert(x < ips200_x_max);
+  239   1          //zf_assert(y < ips200_y_max);
+  240   1      
+  241   1          uint8 a[3];
+  242   1          uint8 i;
+  243   1          if(dat<0)
+  244   1          {
+  245   2              ips200_show_char(x,y,'-');
+  246   2              dat = -dat;
+  247   2          }
+  248   1          else
+  249   1              ips200_show_char(x,y,' ');
+  250   1          
+  251   1          a[0] = dat/100;
+  252   1          a[1] = dat/10%10;
+  253   1          a[2] = dat%10;
+  254   1          i = 0;
+  255   1          while(i<3)
+  256   1          {
+  257   2              ips200_show_char(x+(8*(i+1)),y,(uint8)('0' + a[i]));
+  258   2              i++;
+  259   2          }
+  260   1      }
+  261          
+  262          //-------------------------------------------------------------------------------------------------------
+             -------------
+  263          // @brief       液晶显示8位无符号
+  264          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  265          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  266          // @param       dat             需要显示的变量 数据类型uint8
+  267          // @return      void
+  268          // Sample usage:                ips200_show_uint8(0,0,x);                       // x 为 uint8 类型
+  269          //-------------------------------------------------------------------------------------------------------
+             -------------
+  270          void ips200_show_uint8(uint16 x,uint16 y,uint8 dat)
+  271          {
+  272   1          //zf_assert(x < ips200_x_max);
+  273   1          //zf_assert(y < ips200_y_max);
+  274   1      
+  275   1          uint8 a[3];
+  276   1          uint8 i;
+  277   1          
+  278   1          a[0] = dat/100;
+  279   1          a[1] = dat/10%10;
+  280   1          a[2] = dat%10;
+  281   1          i = 0;
+  282   1          while(i<3)
+  283   1          {
+  284   2              ips200_show_char(x+(8*i),y,(uint8)('0' + a[i]));
+  285   2              i++;
+  286   2          }
+  287   1          
+  288   1      }
+  289          
+  290          //-------------------------------------------------------------------------------------------------------
+             -------------
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 6   
+
+  291          // @brief       液晶显示16位有符号
+  292          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  293          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  294          // @param       dat             需要显示的变量 数据类型int16
+  295          // @return      void
+  296          // Sample usage:                ips200_show_int16(0,0,x);                       // x 为 int16 类型
+  297          //-------------------------------------------------------------------------------------------------------
+             -------------
+  298          void ips200_show_int16(uint16 x,uint16 y,int16 dat)
+  299          {
+  300   1          //zf_assert(x < ips200_x_max);
+  301   1          //zf_assert(y < ips200_y_max);
+  302   1      
+  303   1          uint8 a[5];
+  304   1          uint8 i;
+  305   1      
+  306   1          if(dat<0)
+  307   1          {
+  308   2              ips200_show_char(x,y,'-');
+  309   2              dat = -dat;
+  310   2          }
+  311   1          else    ips200_show_char(x,y,' ');
+  312   1      
+  313   1          a[0] = dat/10000;
+  314   1          a[1] = dat/1000%10;
+  315   1          a[2] = dat/100%10;
+  316   1          a[3] = dat/10%10;
+  317   1          a[4] = dat%10;
+  318   1          
+  319   1          i = 0;
+  320   1          while(i<5)
+  321   1          {
+  322   2              ips200_show_char(x+(8*(i+1)),y,(uint8)('0' + a[i]));
+  323   2              i++;
+  324   2          }
+  325   1      }
+  326          
+  327          //-------------------------------------------------------------------------------------------------------
+             -------------
+  328          // @brief       液晶显示16位无符号
+  329          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  330          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  331          // @param       dat             需要显示的变量，数据类型uint16
+  332          // @return      void
+  333          // Sample usage:                ips200_show_uint16(0,0,x);                      // x 为 uint16 类型
+  334          //-------------------------------------------------------------------------------------------------------
+             -------------
+  335          void ips200_show_uint16(uint16 x,uint16 y,uint16 dat)
+  336          {
+  337   1          //zf_assert(x < ips200_x_max);
+  338   1          //zf_assert(y < ips200_y_max);
+  339   1      
+  340   1          uint8 a[5];
+  341   1          uint8 i;
+  342   1      
+  343   1          a[0] = dat/10000;
+  344   1          a[1] = dat/1000%10;
+  345   1          a[2] = dat/100%10;
+  346   1          a[3] = dat/10%10;
+  347   1          a[4] = dat%10;
+  348   1          
+  349   1          i = 0;
+  350   1          while(i<5)
+  351   1          {
+  352   2              ips200_show_char(x+(8*i),y,(uint8)('0' + a[i]));
+  353   2              i++;
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 7   
+
+  354   2          }
+  355   1      }
+  356          
+  357          //-------------------------------------------------------------------------------------------------------
+             -------------
+  358          // @brief       液晶显示32位有符号(去除整数部分无效的0)
+  359          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  360          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  361          // @param       dat             需要显示的变量，数据类型uint32
+  362          // @param       num             需要显示的位数 最高10位  不包含正负号
+  363          // @return      void
+  364          // Sample usage:                ips200_showuint32(0,0,x,3);                     // x 可以为 int32 uint
+             -16 int16 uint8 int8 类型
+  365          // note:                        负数会显示一个 ‘-’号   正数显示一个空格
+  366          //-------------------------------------------------------------------------------------------------------
+             -------------
+  367          void ips200_show_int32(uint16 x,uint16 y,int32 dat,uint8 num)
+  368          {
+  369   1          //zf_assert(x < ips200_x_max);
+  370   1          //zf_assert(y < ips200_y_max);
+  371   1      
+  372   1          int8    buff[34];
+  373   1          uint8   length;
+  374   1          
+  375   1          if(10<num)      num = 10;
+  376   1          
+  377   1          num++;
+  378   1          if(0>dat)   length = zf_sprintf( &buff[0],(const int8 *)"%d",dat);        // 负数
+  379   1          else
+  380   1          {
+  381   2              buff[0] = ' ';
+  382   2              length = zf_sprintf( &buff[1],(const int8 *)"%d",dat);
+  383   2              length++;
+  384   2          }
+  385   1          while(length < num)
+  386   1          {
+  387   2              buff[length] = ' ';
+  388   2              length++;
+  389   2          }
+  390   1          buff[num] = '\0';
+  391   1      
+  392   1          ips200_show_string(x, y, (const char *)buff);                               // 显示数字
+  393   1      }
+  394          
+  395          //-------------------------------------------------------------------------------------------------------
+             -------------
+  396          // @brief       液晶显示浮点数(去除整数部分无效的0)
+  397          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  398          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  399          // @param       dat             需要显示的变量，数据类型float或double
+  400          // @param       num             整数位显示长度   最高10位
+  401          // @param       pointnum        小数位显示长度   最高6位
+  402          // @return      void
+  403          // Sample usage:                ips200_showfloat(0,0,x,2,3);                    // 显示浮点数   整�
+             -��显示2位   小数显示三位
+  404          // @note                        特别注意当发现小数部分显示的值与你写入的值不一样�
+             -��时候，
+  405          //                              可能是由于浮点数精度丢失问题导致的，这并不是显示�
+             -��数的问题，
+  406          //                              有关问题的详情，请自行百度学习   浮点数精度丢失问�
+             -��。
+  407          //                              负数会显示一个 ‘-’号   正数显示一个空格
+  408          //-------------------------------------------------------------------------------------------------------
+             -------------
+  409          void ips200_show_float(uint16 x,uint16 y,double dat,uint8 num,uint8 pointnum)
+  410          {
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 8   
+
+  411   1          //zf_assert(x < ips200_x_max);
+  412   1          //zf_assert(y < ips200_y_max);
+  413   1      
+  414   1          uint8   length;
+  415   1          int8    buff[34];
+  416   1          int8    start,end,point;
+  417   1      
+  418   1          if(6<pointnum)  pointnum = 6;
+  419   1          if(10<num)      num = 10;
+  420   1              
+  421   1          if(0>dat)   length = zf_sprintf( &buff[0],(const int8 *)"%f",dat);        // 负数
+  422   1          else
+  423   1          {
+  424   2              length = zf_sprintf( &buff[1],(const int8 *)"%f",dat);
+  425   2              length++;
+  426   2          }
+  427   1          point = length - 7;                                                         // 计算小数点位置
+  428   1          start = point - num - 1;                                                    // 计算起始位
+  429   1          end = point + pointnum + 1;                                                 // 计算结束位
+  430   1          while(0>start)                                                              // 整数位不够  末�
+             -�应该填充空格
+  431   1          {
+  432   2              buff[end] = ' ';
+  433   2              end++;
+  434   2              start++;
+  435   2          }
+  436   1          
+  437   1          if(0>dat)   buff[start] = '-';
+  438   1          else        buff[start] = ' ';
+  439   1          
+  440   1          buff[end] = '\0';
+  441   1      
+  442   1          ips200_show_string(x, y, (const char *)buff);                               // 显示数字
+  443   1      }
+  444          
+  445          
+  446          //-------------------------------------------------------------------------------------------------------
+             -------------
+  447          // @brief       IPS200 显示波形
+  448          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  449          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  450          // @param       *p              波形数组指针
+  451          // @param       width           波形实际宽度
+  452          // @param       value_max       波形实际最大值
+  453          // @param       dis_width       波形显示宽度 参数范围 [0, ips200_x_max]
+  454          // @param       dis_value_max   波形显示最大值 参数范围 [0, ips200_y_max]
+  455          // @return      void
+  456          // Sample usage:                ips200_show_gray_image(0,0,camera_buffer_addr,MT9V03X_W,MT9V03X_H,240,135
+             -,128);
+  457          //-------------------------------------------------------------------------------------------------------
+             -------------
+  458          void ips200_show_wave(uint16 x, uint16 y, uint8 *p, uint16 width, uint16 value_max, uint16 dis_width, uin
+             -t16 dis_value_max)
+  459          {
+  460   1          //zf_assert(x < ips200_x_max);
+  461   1          //zf_assert(y < ips200_y_max);
+  462   1      
+  463   1          uint32 i = 0, j = 0;
+  464   1          uint32 width_index, value_max_index;
+  465   1      
+  466   1          ips200_set_region(x, y, x+dis_width-1, y+dis_value_max-1);                  // 设置显示区域
+  467   1          for(i=0;i<dis_value_max;i++)
+  468   1          {
+  469   2              for(j=0;j<dis_width;j++)
+  470   2              {
+  471   3                  ips200_write_16bit_data(ips200_bgcolor); 
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 9   
+
+  472   3              }
+  473   2          }
+  474   1      
+  475   1          for(i=0;i<dis_width;i++)
+  476   1          {
+  477   2              width_index = i*width/dis_width;
+  478   2              value_max_index = *(p+width_index)*(dis_value_max-1)/value_max;
+  479   2              ips200_draw_point(i+x, (dis_value_max-1)-value_max_index+y, ips200_pencolor);
+  480   2          }
+  481   1      }
+  482          
+  483          //-------------------------------------------------------------------------------------------------------
+             -------------
+  484          // @brief       汉字显示
+  485          // @param       x               坐标x方向的起点 参数范围 [0, ips200_x_max-1]
+  486          // @param       y               坐标y方向的起点 参数范围 [0, ips200_y_max-1]
+  487          // @param       siz            取模的时候设置的汉字字体大小 也就是一个汉字占用的�
+             -��阵长宽为多少个点 取模的时候需要长宽是一样的
+  488          // @param       *p              需要显示的汉字数组
+  489          // @param       number          需要显示多少位
+  490          // @param       color           显示颜色
+  491          // @return      void
+  492          // Sample usage:                ips200_show_chinese(0,0,16,chinese_test[0],4,RED);//显示font文件里�
+             -�的 示例
+  493          // @Note                        使用PCtoLCD2002软件取模           阴码、逐行式、顺向   16*
+             -16
+  494          //-------------------------------------------------------------------------------------------------------
+             -------------
+  495          void ips200_show_chinese (uint16 x, uint16 y, uint8 siz, const uint8 *p, uint8 number, uint16 color)
+  496          {
+  497   1          //zf_assert(x < ips200_x_max);
+  498   1          //zf_assert(y < ips200_y_max);
+  499   1      
+  500   1          int i, j, k; 
+  501   1          uint8 temp, temp1, temp2;
+  502   1          const uint8 *p_data;
+  503   1          
+  504   1          temp2 = siz/8;
+  505   1          
+  506   1          ips200_set_region(x,y,number*siz-1+x,y+siz-1);
+  507   1          
+  508   1          for(i=0;i<siz;i++)
+  509   1          {
+  510   2              temp1 = number;
+  511   2              p_data = p+i*temp2;
+  512   2              while(temp1--)
+  513   2              {
+  514   3                  for(k=0;k<temp2;k++)
+  515   3                  {
+  516   4                      for(j=8;j>0;j--)
+  517   4                      {
+  518   5                          temp = (*p_data>>(j-1)) & 0x01;
+  519   5                          if(temp)    ips200_write_16bit_data(color);
+  520   5                          else        ips200_write_16bit_data(ips200_bgcolor);
+  521   5                      }
+  522   4                      p_data++;
+  523   4                  }
+  524   3                  p_data = p_data - temp2 + temp2*siz;
+  525   3              }   
+  526   2          }
+  527   1      }
+  528          
+  529          //-------------------------------------------------------------------------------------------------------
+             -------------
+  530          // @brief       1.14寸 IPS液晶初始化
+  531          // @return      void
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 10  
+
+  532          // Sample usage:                ips200_init();
+  533          //-------------------------------------------------------------------------------------------------------
+             -------------
+  534          void ips200_init (void)
+  535          {
+  536   1      #if IPS200_USE_SOFT_SPI
+                   soft_spi_init(&ips200_spi, 0, IPS200_SOFT_SPI_DELAY, IPS200_SCL_PIN, IPS200_SDA_PIN, SOFT_SPI_PIN_NUL
+             -L, SOFT_SPI_PIN_NULL);
+               #else
+  539   1          //zf_assert(IPS200_SPI != (IPS200_SCL_PIN&0xF000>>12));
+  540   1          //zf_assert(IPS200_SPI != (IPS200_SDA_PIN&0xF000>>12));
+  541   1          spi_init(IPS200_SPI, SPI_MODE0, IPS200_SPI_SPEED, IPS200_SCL_PIN, IPS200_SDA_PIN, SPI_MISO_NULL, SPI_
+             -CS_NULL);
+  542   1      #endif
+  543   1      
+  544   1      //    gpio_init(IPS200_DC_PIN, GPO, GPIO_LOW, GPO_PUSH_PULL);
+  545   1      //    gpio_init(IPS200_RST_PIN, GPO, GPIO_LOW, GPO_PUSH_PULL);
+  546   1      //    gpio_init(IPS200_CS_PIN, GPO, GPIO_LOW, GPO_PUSH_PULL);
+  547   1      //    gpio_init(IPS200_BLK_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);
+  548   1      
+  549   1          ips200_set_dir(ips200_display_dir);
+  550   1          ips200_set_color(ips200_pencolor, ips200_bgcolor);
+  551   1      
+  552   1          IPS200_RST(0);
+  553   1          system_delay_ms(200);
+  554   1      
+  555   1          IPS200_RST(1);
+  556   1          system_delay_ms(100);
+  557   1      
+  558   1          ips200_write_index(0x36);
+  559   1          system_delay_ms(100);
+  560   1          if      (ips200_display_dir==0) ips200_write_8bit_data(0x00);
+  561   1          else if (ips200_display_dir==1) ips200_write_8bit_data(0xC0);
+  562   1          else if (ips200_display_dir==2) ips200_write_8bit_data(0x70);
+  563   1          else                            ips200_write_8bit_data(0xA0);
+  564   1      
+  565   1          ips200_write_index(0x3A);
+  566   1          ips200_write_8bit_data(0x05);
+  567   1      
+  568   1          ips200_write_index(0xB2);
+  569   1          ips200_write_8bit_data(0x0C);
+  570   1          ips200_write_8bit_data(0x0C);
+  571   1          ips200_write_8bit_data(0x00);
+  572   1          ips200_write_8bit_data(0x33);
+  573   1          ips200_write_8bit_data(0x33);
+  574   1      
+  575   1          ips200_write_index(0xB7);
+  576   1          ips200_write_8bit_data(0x35);
+  577   1      
+  578   1          ips200_write_index(0xBB);
+  579   1          ips200_write_8bit_data(0x37);
+  580   1      
+  581   1          ips200_write_index(0xC0);
+  582   1          ips200_write_8bit_data(0x2C);
+  583   1      
+  584   1          ips200_write_index(0xC2);
+  585   1          ips200_write_8bit_data(0x01);
+  586   1      
+  587   1          ips200_write_index(0xC3);
+  588   1          ips200_write_8bit_data(0x12);
+  589   1      
+  590   1          ips200_write_index(0xC4);
+  591   1          ips200_write_8bit_data(0x20);
+  592   1      
+  593   1          ips200_write_index(0xC6);
+  594   1          ips200_write_8bit_data(0x0F);
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 11  
+
+  595   1      
+  596   1          ips200_write_index(0xD0);
+  597   1          ips200_write_8bit_data(0xA4);
+  598   1          ips200_write_8bit_data(0xA1);
+  599   1      
+  600   1          ips200_write_index(0xE0);
+  601   1          ips200_write_8bit_data(0xD0);
+  602   1          ips200_write_8bit_data(0x04);
+  603   1          ips200_write_8bit_data(0x0D);
+  604   1          ips200_write_8bit_data(0x11);
+  605   1          ips200_write_8bit_data(0x13);
+  606   1          ips200_write_8bit_data(0x2B);
+  607   1          ips200_write_8bit_data(0x3F);
+  608   1          ips200_write_8bit_data(0x54);
+  609   1          ips200_write_8bit_data(0x4C);
+  610   1          ips200_write_8bit_data(0x18);
+  611   1          ips200_write_8bit_data(0x0D);
+  612   1          ips200_write_8bit_data(0x0B);
+  613   1          ips200_write_8bit_data(0x1F);
+  614   1          ips200_write_8bit_data(0x23);
+  615   1      
+  616   1          ips200_write_index(0xE1);
+  617   1          ips200_write_8bit_data(0xD0);
+  618   1          ips200_write_8bit_data(0x04);
+  619   1          ips200_write_8bit_data(0x0C);
+  620   1          ips200_write_8bit_data(0x11);
+  621   1          ips200_write_8bit_data(0x13);
+  622   1          ips200_write_8bit_data(0x2C);
+  623   1          ips200_write_8bit_data(0x3F);
+  624   1          ips200_write_8bit_data(0x44);
+  625   1          ips200_write_8bit_data(0x51);
+  626   1          ips200_write_8bit_data(0x2F);
+  627   1          ips200_write_8bit_data(0x1F);
+  628   1          ips200_write_8bit_data(0x1F);
+  629   1          ips200_write_8bit_data(0x20);
+  630   1          ips200_write_8bit_data(0x23);
+  631   1      
+  632   1          ips200_write_index(0x21);
+  633   1      
+  634   1          ips200_write_index(0x11);
+  635   1          system_delay_ms(120);
+  636   1      
+  637   1          ips200_write_index(0x29);
+  638   1      
+  639   1          ips200_clear(ips200_bgcolor);
+  640   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      3800     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =       250     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        41     ------
+End of Module Information.
+
+C251 COMPILER V5.60.0,  zf_device_ips200                                                   23/07/25  14:54:10  PAGE 12  
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
